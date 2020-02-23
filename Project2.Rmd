@@ -1,0 +1,200 @@
+---
+Output: pdf_doucment
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(markdown)
+library(haven)
+library(stats)
+library(haven)
+library(Hmisc)
+library(car)
+library(sandwich)
+library(carData)
+library(ATE)
+library(stargazer)
+library(MASS)
+library(systemfit)
+rawdata <- read_dta("/Users/JasonKim/Documents/Yale/Fall2019/ECON 123/Project2/project_data.dta")
+mydata <- subset(rawdata, rawdata$dcontinue == 1)
+```
+1. The power in this experiment is the proportion sampled into treatment and control (1/2 and 1/2)
+
+2. To compare, we are going to use the pre-treatment means of the entire data set as our "true mean" and run separate t-tests 
+```{r}
+treatment <- subset(mydata, mydata$select == 1)
+control <- subset(mydata, mydata$select == 0)
+female <- subset(mydata, mydata$dwomen == 1)
+male <- subset(mydata, mydata$dwomen == 0)
+mean(mydata$empl_04)
+mean(treatment$empl_04)
+mean(control$empl_04)
+mean(mydata$salary_04)
+mean(treatment$salary_04)
+mean(control$salary_04)
+
+mean(mydata$dmarried_lb)
+mean(treatment$dmarried_lb)
+mean(control$dmarried_lb)
+
+t.test(treatment$empl_04, mu = mean(mydata$pempl_04))
+t.test(control$empl_04, mu = mean(mydata$pempl_04))
+t.test(treatment$salary_04, mu = mean(mydata$salary_04))
+t.test(control$salary_04, mu = mean(mydata$salary_04))
+t.test(treatment$dmarried_lb, mu = mean(mydata$dmarried_lb))
+t.test(control$dmarried_lb, mu = mean(mydata$dmarried_lb))
+
+
+```
+As we can see, there is no case in which we can reject the null hypothesis that the baseline means for employment indicator, for salary, and for marriage are different to the entire sample mean. We will now conduct an F-test to show that these two variables are not responsible for determining one's selection into treatment
+```{r}
+l1 <- lm(mydata$select ~ mydata$empl_04 + mydata$salary_04)
+summary(l1)
+```
+As we can see, the p statistic is 0.08929 and the F-statistic on this is 2.149 and so according to the F-table we cannot reject the null hypothesis that the coefficients on both variables are zero. This suggests that both variables are not significant in predicting whether a participant is selected into treatment or not
+
+3.
+```{r}
+
+femaletreatment <- subset(female, female$select == 1)
+
+femalecontrol <- subset(female, female$select == 0)
+maletreatment <- subset(male, male$select == 1)
+malecontrol <- subset(male, male$select == 0)
+
+ate_male_employment <- mean(maletreatment$empl_06, na.rm = TRUE) - mean(malecontrol$empl_06, na.rm = TRUE)
+ate_male_employment
+
+ate_female_employment <- mean(femaletreatment$empl_06, na.rm = TRUE) - mean(femalecontrol$empl_06, na.rm = TRUE)
+ate_female_employment
+
+ate_male_earnings <- mean(maletreatment$salary_06, na.rm = TRUE) - mean(malecontrol$salary_06, na.rm = TRUE)
+ate_male_earnings
+
+ate_female_earnings <- mean(femaletreatment$salary_06, na.rm = TRUE) - mean(femalecontrol$salary_06, na.rm = TRUE)
+ate_female_earnings
+
+ate_overall_employment <- mean(treatment$empl_06, na.rm = TRUE) - mean(control$empl_06, na.rm = TRUE)
+ate_overall_employment
+
+ate_overall_earnings <- mean(treatment$salary_06, na.rm = TRUE) - mean(control$salary_06, na.rm = TRUE)
+ate_overall_earnings
+```
+This is just the difference in means between the treated and the control group for male, female, and overall which we will check with some regressions on our dependent variables which we are testing for.
+
+```{r}
+f_employment <- lm(empl_06 ~ select + salary_04 + hours_04 + age_lb + dmarried_lb + educ_lb + as.factor(coursefixe), data = female)
+f_earnings <- lm(salary_06 ~ select + salary_04 + hours_04 + age_lb + dmarried_lb + educ_lb + as.factor(coursefixe), data = female)
+
+
+m_employment <- lm(empl_06 ~ select + salary_04 + hours_04 + age_lb + dmarried_lb + educ_lb + as.factor(coursefixe), data = male)
+
+m_earnings <- lm(salary_06 ~ select + salary_04 + hours_04 + age_lb + dmarried_lb + educ_lb + as.factor(coursefixe), data = male)
+
+
+o_employment <- lm(empl_06 ~ select + salary_04 + hours_04 + age_lb + dmarried_lb + educ_lb + as.factor(coursefixe), data = mydata)
+
+o_earnings <- lm(salary_06 ~ select + salary_04 + hours_04 + age_lb + dmarried_lb + educ_lb + as.factor(coursefixe), data = mydata)
+
+```
+
+
+```{r}
+stargazer(f_employment, m_employment, o_employment, column.labels = c("Female", "Male", "Overall"), title = "Employment", type = "text", keep = 1:7)
+
+stargazer(f_earnings, m_earnings, o_earnings, column.labels = c("Female", "Male", "Overall"), title = "Earnings", type = "text", keep = 1:7)
+```
+As we can see from the first table, the coefficient on the select variable is the average effect of the treatment on employment amongst men, women, and overall. We observe that the result is significant for females at a 5% level suggesting that there is a 5.3% increase in the chance to be employed but this result is not seen in males and overall population showing that this treatmnet had a great effect on women.
+
+In the second table, the coefficient on the select variable is significant at the 5% level for the overall sample and for females suggesting that treatmnet causes an increase in salary of 34,267 Colombian pesos in women and 31,011 Colombian pesos overall. There is evidence to suggest that there is a slight increase in salary for men but it is not significant.
+
+4.
+Our null hypothesis is that the effect of treatment on men and women for employment is the same and that the effect of treatment on men and women for salary is the same
+```{r}
+t1 <- (0.053 + 0.025)/sqrt(((0.023^2)/1767)+((0.022^2)/1464))
+t1
+t2 <- (34267.56 - 14857.300)/sqrt(((9719.153^2)/1767)+((12704.130^2)/1464))
+t2
+```
+We observe rather large t statistics for both and so we reject the null hypothesis for both that the effects of treatment on men and women in terms of employment and earnings is the same.
+
+5. We can run a chi-squared test to test this 
+```{r}
+
+m1 <- salary_06~select
+m2 <- salary_06~select+factor(coursefixe)
+
+reg <- systemfit(formula=list(reg1 = m1, reg2 = m2),data=mydata,method="SUR")
+
+restriction <- "reg1_select-reg2_select"
+linearHypothesis(reg, restriction,test = "Chisq")
+```
+
+We obtain a chi-squared value of 0.0337 and a p-value of 0.8543 which is quite high and so we fail to  reject the null hypothesis that the treatment effect is the same whether you allow for the course fixed effects or not
+
+6.
+The center fixed effects represent the differences between each specific center which may be unique to that center such as the size, the number of resources they may have. Including these variables is to help eliminate the variation that may be present between individual centers
+```{r}
+l3 <- lm(salary_06 ~ select + dwomen + educ_lb+ dmarried_lb + age_lb + coursefixe, mydata)
+l4 <- lm(salary_06 ~ select + dwomen + educ_lb+ dmarried_lb + age_lb, mydata)
+linearHypothesis(l3, c("coursefixe = 0"))
+```
+
+```{r}
+stargazer(l3, l4, type = 'text')
+```
+We observe that the R^2 statistic does not change between the regression with or without the fixed effects
+
+7.
+The treatment unit is still the individual because within a center, there can still exist both those who are treated and those who are not. We still, however, need to take into account clustering as there may be intracluster correlation, as in between training centers or even within a single training center.
+
+8.
+```{r}
+l5 <- lm(dmarried_s ~ select + age_lb + dmarried_lb + hours_04, female)
+l6 <- lm(dmarried_s ~ select + age_lb + dmarried_lb + hours_04, male)
+stargazer(l5, l6, column.labels = c("Female", "Male"), type = 'text')
+```
+In my regressions, I included whether they were selected into treatment, their age before, their marital status before and hours worked before the program. The reason I chose these variables is because I expected that the treatment would positively affect marital status in that they would not divorce due to treatment. From our results, however, we observe that the effect of the treatment is not significant in determining marital status after the program so we reject the null hypothesis that the program helps lead to marriage afterwards.
+
+9. In my next regressions, I am going to test whether treatment has an effect on the number of days worked per month which I predict it will do so. I will include other variables such as hours worked per week, marital status, and age as I believe that some of these variables may also affect the number of days worked per month after the program. 
+```{r}
+f_days <- lm(days_06 ~ select + age_lb + educ_lb + dmarried_lb + empl_04 + as.factor(coursefixe), female)
+m_days <- lm(days_06 ~ select + age_lb + educ_lb + dmarried_lb + empl_04 + as.factor(coursefixe), male)
+stargazer(f_days, m_days, column.labels = c("Female", "Male"), title = "Days worked per month", type = "text", keep = 1:6)
+```
+The result here is interesting as it is only significant at the 10% level for women selected into treatmenr and not significant for men. Instead, the education, employment status before the program, and marital status all have significance at the 5% level for women, and marriage here is especially interesting. The inference we can make here is that when women are married, they are expected to do more for the family and so spend less time working, reflected in the negative coefficient.
+Age is significant for men but not for women suggesting that the older a male is, the longer hours and days that they are expected to work in Colombia. 
+These results suggest that number of days working are guided by social and cultural expectations within Colombia, rather than whether they have had training or not
+
+10. We can find the standard deviation as such:
+```{r}
+sd1 <- sqrt(vcov(o_employment)[2,2])
+sd1
+
+```
+Then we do our power calcuations, trying to keep our standard deviation the same as before
+```{r}
+N1 <- ((2*(1.96 + 0.84))/0.03)^2
+N2 <- ((2*(1.96 + 1.28))/0.03)^2
+N3 <- ((2*(2.57 + 1.28))/0.03)^2
+N1
+N2
+N3
+```
+11.
+The conclusions drawn by both papers are remarkably similar in that the program was a huge success, in particular for women. In terms of the assumptions made in the first paper, it is fair to say that the IRR and returns were predicted much higher than it actually turned out to be although the first paper does acknowledge this and the second paper is not complete in the factors that it has considered into its calculations such as nonwage benefits. 
+
+12.
+They both agree very clearly that there was much more success for women in the program than men but while the first paper claims that there are no clear gains for men, the second paper disagrees in that formal employment and earnings have increased and been sustained by both males and females, indicating that actually the program was a success for both men and women. Regarding the figure, the one on the left is much noiser as the sample size is much lower and so the variance will be much higher than in a sample size which is much larger. A dropout of the system on the left is much more significant and noticeable in a smaller sample size than it is in a larger one which would require much more movement to be seen on the graph.
+
+13.
+There is clear evidence suggesting that this experiment was a huge success in both the short term (for women), and in the long term for both men and women. As a result, we have observed an increase in movement in younger people to the formal sector and following, an increase in the quality of life and earnings, as well as better benefits. For instance, the salary increase observed in women if selected into the program was aroudn 34000 Colombian pesos, which was much higher than that observed in men. 
+It is rather interesting to see the effects of a training program in a middle income country as it has shown that a program like this has had general positive effects in mobilizing the younger generation of people in the lowest socioeconomic strata to become more productive, and give them the opportunity to find a better job that is formalized and pays better. 
+Scaling up this operation to the whole economy would be an ideal situation but obviously comes with its difficulties. For instance, as mentioned in both papers, there is huge difficulty in collecting data of those who are working in the informal sector as pay is not something that is regulated by a government body like SISBEN. As a result, if a program like this, which aims itself at younger people who have not had as many opportunites, was introduced to the entire population, there could potentially be difficulties in partnerships with firms and companies who may be too overloaded to take on and perhaps train new or persepctive emplpoyees. 
+Ultimately, there is too little to no data on the informal sector to quickly scale up such a careful operation such as this to the whole economy. There is more work to be done on the many datapoints in the informal sector before one should consider scaling up the operation as there are probably many facets to the relationships between youth unemployment, the formal sector, the informal sector, and the economy as a whole.
+
